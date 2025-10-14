@@ -146,84 +146,42 @@ export const RateBandSchema = z.object({
   fulfilment_type: z.enum(['instant', 'manual', 'buy_to_order']).optional(),
   status: z.enum(['active', 'requires_procurement', 'pending_confirmation']).optional(),
   
-  // Pricing strategy
-  pricing_strategy: z.enum(['per_room', 'per_person', 'per_vehicle', 'per_unit', 'per_session']),
-  
-  // Pricing configuration based on strategy
-  pricing_config: z.object({
-    // Per Room (Hotels)
-    base_room_rate: z.number().nonnegative().optional(),
-    additional_person_charge: z.number().nonnegative().optional(),
-    max_occupancy: z.number().int().positive().optional(),
-    
-    // Per Person (Tickets, Activities)
-    rate_per_person: z.number().nonnegative().optional(),
-    
-    // Per Vehicle (Transfers)
-    rate_per_vehicle: z.number().nonnegative().optional(),
-    vehicle_capacity: z.number().int().positive().optional(),
-    route_from: z.string().optional(),
-    route_to: z.string().optional(),
-    duration_minutes: z.number().int().positive().optional(),
-    
-    // Per Unit (Equipment)
-    rate_per_unit: z.number().nonnegative().optional(),
-    rental_period: z.string().optional(),
-    
-    // Per Session (Photography)
-    rate_per_session: z.number().nonnegative().optional(),
-    session_duration_hours: z.number().positive().optional(),
-    max_group_size: z.number().int().positive().optional(),
-    
-    // Common fields
-    includes: z.array(z.string()).default([]),
-    restrictions: z.array(z.string()).default([]),
-    validity_period: z.number().int().positive().optional()
+  weekday_mask: z.number().int().min(0).max(127),
+  currency: z.string().length(3, 'Currency must be 3 characters'),
+  active: z.boolean().default(true),
+  // Simple pricing structure
+  base_rate: z.number().nonnegative('Base rate must be non-negative'),
+  pricing_unit: z.enum(['per_room', 'per_person', 'per_vehicle', 'per_seat', 'per_unit']),
+  additional_person_charge: z.number().nonnegative().optional(),
+  max_occupancy: z.number().int().positive().optional(),
+  markup: z.object({
+    b2c_pct: z.number().min(0).max(500, 'B2C markup must be between 0-500%'),
+    b2b_pct: z.number().min(0).max(500, 'B2B markup must be between 0-500%')
   }),
   
   // Enhanced date-specific pricing
   date_rates: z.record(z.string(), z.object({
-    rate: z.number().nonnegative('Rate must be non-negative'),
-    additional_info: z.string().optional()
+    single_double: z.number().nonnegative('Rate must be non-negative'),
+    additional_person: z.number().nonnegative().optional(),
+    max_occupancy: z.number().int().positive().optional(),
+    rate_includes: z.string().optional()
   })).optional(),
   
-  // Buy-to-order specific pricing (estimated costs)
-  estimated_cost: z.number().nonnegative().optional(),
   
   // Risk buffer for buy-to-order items
-  buffer_margin_percent: z.number().min(0).max(100).optional(),
+  buffer_margin_percent: z.number().min(0).max(100, 'Buffer margin must be 0-100%').optional(),
   
   // Tax and fee configuration
   tax_config: z.object({
-    tax_rate: z.number().min(0).max(100, 'Tax rate must be 0-100%').optional(),
-    fee_daily: z.number().nonnegative().optional(),
-    fee_taxable: z.boolean().optional(),
-    fee_inclusions: z.string().optional()
+    room_tax_rate: z.number().min(0).max(100, 'Room tax rate must be 0-100%').optional(),
+    resort_fee_daily: z.number().nonnegative().optional(),
+    resort_fee_taxable: z.boolean().optional(),
+    resort_fee_inclusions: z.string().optional()
   }).optional()
-}).refine(data => new Date(data.band_start) < new Date(data.band_end), {
-  message: "End date must be after start date",
-  path: ["band_end"]
-}).refine(data => {
-  // Validate that at least one pricing field is provided based on strategy
-  const config = data.pricing_config;
-  switch (data.pricing_strategy) {
-    case 'per_room':
-      return config.base_room_rate !== undefined && config.base_room_rate > 0;
-    case 'per_person':
-      return config.rate_per_person !== undefined && config.rate_per_person > 0;
-    case 'per_vehicle':
-      return config.rate_per_vehicle !== undefined && config.rate_per_vehicle > 0;
-    case 'per_unit':
-      return config.rate_per_unit !== undefined && config.rate_per_unit > 0;
-    case 'per_session':
-      return config.rate_per_session !== undefined && config.rate_per_session > 0;
-    default:
-      return false;
-  }
-}, {
-  message: "Please provide a valid rate for the selected pricing strategy",
-  path: ["pricing_config"]
-});
+  }).refine(data => new Date(data.band_start) < new Date(data.band_end), {
+    message: "End date must be after start date",
+    path: ["band_end"]
+  });
 
 export const AllocationSchema = z.object({
   resource_id: z.string().min(1, 'Resource is required'),

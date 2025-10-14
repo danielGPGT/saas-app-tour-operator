@@ -67,7 +67,11 @@ export default function SalesSearchPage() {
       )
       
       const rateBand = availableRateBands?.[0] // Take the first matching band
-      const contract = contracts?.find(c => c.id === rateBand?.contract_id)
+      
+      // Handle buy-to-order items (no contract needed)
+      const contract = rateBand?.contract_id === 'buy-to-order' 
+        ? null 
+        : contracts?.find(c => c.id === rateBand?.contract_id)
       
       // Find allocations for this product (overlap logic)
       const allocation = allocations?.find(a => {
@@ -141,24 +145,37 @@ export default function SalesSearchPage() {
       }
 
       // Check what data we have
+      const isBuyToOrder = rateBand?.contract_id === 'buy-to-order'
       console.log('Data availability check:', {
         hasProduct: !!product,
         hasResource: !!resource,
         hasRateBand: !!rateBand,
         hasContract: !!contract,
-        hasAllocation: !!allocation
+        hasAllocation: !!allocation,
+        isBuyToOrder: isBuyToOrder
       })
 
-      // If we don't have all the required data, show a helpful message
-      if (!rateBand || !contract || !allocation) {
-        console.log('Missing pricing/allocation data for product:', product.name)
-        console.log('This product needs:')
-        if (!rateBand) console.log('- A rate band with dates covering your search dates')
-        if (!contract) console.log('- A contract linked to the rate band')
-        if (!allocation) console.log('- An allocation with dates covering your search dates')
-        
+      // If we don't have a rate band, we can't proceed
+      if (!rateBand) {
+        console.log('Missing rate band for product:', product.name)
+        console.log('This product needs a rate band with dates covering your search dates')
         setSearchResults([])
         return
+      }
+
+      // For buy-to-order items, we don't need contracts or allocations
+      
+      if (!isBuyToOrder) {
+        // For regular items, we need contract and allocation
+        if (!contract || !allocation) {
+          console.log('Missing pricing/allocation data for product:', product.name)
+          console.log('This product needs:')
+          if (!contract) console.log('- A contract linked to the rate band')
+          if (!allocation) console.log('- An allocation with dates covering your search dates')
+          
+          setSearchResults([])
+          return
+        }
       }
 
       // Generate date array for pricing (exclude check-out date)
@@ -178,17 +195,73 @@ export default function SalesSearchPage() {
         pax: { adults: params.adults, children: params.children }
       })
       
-      const pricingResult = priceStay({
-        band: rateBand,
-        contract: contract,
-        channel: params.channel,
-        dates: dates,
-        pax: { adults: params.adults, children: params.children }
-      })
+      // Calculate pricing - handle buy-to-order vs regular items
+      let pricingResult = null;
+      
+      if (rateBand?.contract_id === 'buy-to-order') {
+        // Buy-to-order items: simple pricing without contract
+        const baseRate = rateBand.base_rate || 0;
+        const markupPct = params.channel === 'b2c' ? rateBand.markup.b2c_pct : rateBand.markup.b2b_pct;
+        
+        // Calculate quantity based on pricing unit
+        let quantity = 1;
+        if (rateBand.pricing_unit === 'per_person' || rateBand.pricing_unit === 'per_seat') {
+          quantity = params.adults + params.children.length;
+        } else if (rateBand.pricing_unit === 'per_room') {
+          quantity = Math.ceil((params.adults + params.children.length) / (rateBand.max_occupancy || 2));
+        } else if (rateBand.pricing_unit === 'per_vehicle') {
+          quantity = 1; // One vehicle regardless of passengers
+        } else {
+          // per_unit or per night - use nights for hotels, 1 for others
+          quantity = rateBand.pricing_unit === 'per_room' ? dates.length : 1;
+        }
+        
+        const netTotal = baseRate * quantity;
+        const markupAmount = netTotal * (markupPct / 100);
+        
+        pricingResult = {
+          nightly: rateBand.pricing_unit === 'per_room' ? dates.map(() => baseRate) : [baseRate],
+          room_subtotal_net: netTotal,
+          supplier_commission: 0,
+          supplier_vat: 0,
+          fees_included: 0,
+          fees_pay_at_property: 0,
+          markup_amount: markupAmount,
+          total_due_now: netTotal + markupAmount,
+          breakdown: {
+            dates: dates,
+            occKey: rateBand.pricing_unit,
+            boardCostPppn: 0,
+            nightly_breakdown: rateBand.pricing_unit === 'per_room' 
+              ? dates.map(date => ({
+                  date,
+                  base_rate: baseRate,
+                  board_cost: 0,
+                  net_rate: baseRate
+                }))
+              : [{
+                  date: dates[0] || new Date().toISOString().split('T')[0],
+                  base_rate: baseRate,
+                  board_cost: 0,
+                  net_rate: baseRate
+                }]
+          }
+        };
+      } else if (contract) {
+        // Regular items: use full pricing engine
+        pricingResult = priceStay({
+          band: rateBand,
+          contract: contract,
+          channel: params.channel,
+          dates: dates,
+          pax: { adults: params.adults, children: params.children }
+        });
+      }
       
       console.log('Pricing result:', pricingResult)
 
-      const results = [
+      // Only add results if we have pricing
+      const results = pricingResult ? [
         {
           id: `result_${Date.now()}`,
           product,
@@ -198,12 +271,13 @@ export default function SalesSearchPage() {
           allocation,
           pricing: pricingResult,
           availability: {
-            capacity: allocation.capacity,
-            available: allocation.capacity,
-            max_bookable: allocation.capacity
-          }
+            capacity: allocation?.capacity || 999, // Buy-to-order items have unlimited capacity
+            available: allocation?.capacity || 999,
+            max_bookable: allocation?.capacity || 999
+          },
+          isBuyToOrder: rateBand?.contract_id === 'buy-to-order'
         }
-      ]
+      ] : []
       
       setSearchResults(results)
     } catch (error) {

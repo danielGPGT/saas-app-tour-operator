@@ -49,6 +49,7 @@ interface SearchResult {
     available: number
     max_bookable: number
   }
+  isBuyToOrder?: boolean
 }
 
 interface SearchResultsProps {
@@ -150,7 +151,14 @@ export function SearchResults({ results, isLoading, searchParams }: SearchResult
                 <div className="flex items-center gap-2">
                   <span className="text-2xl">{getResourceTypeIcon(result.resource.type)}</span>
                   <div>
-                    <CardTitle className="text-lg">{result.product.name}</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-lg">{result.product.name}</CardTitle>
+                      {result.isBuyToOrder && (
+                        <Badge variant="outline" className="text-orange-600 border-orange-300">
+                          ⚠️ Buy-to-Order
+                        </Badge>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <MapPin className="h-3 w-3" />
                       {result.resource.name}

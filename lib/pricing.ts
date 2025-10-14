@@ -37,7 +37,7 @@ export function priceStay(params: {
 }): PricingResult {
   const { band, contract, channel, dates, pax } = params;
 
-  // Enhanced pricing logic supporting date-specific rates
+  // Enhanced pricing logic supporting date-specific rates and new pricing units
   const nightlyNet = dates.map((date) => {
     let baseRate = 0;
     let boardCost = 0;
@@ -48,54 +48,33 @@ export function priceStay(params: {
       const dateRate = band.date_rates[date];
       baseRate = dateRate.single_double;
       
-      // Calculate additional person charges
-      if (pax.adults > 2 && dateRate.additional_person) {
+      // Calculate additional person charges (only for hotels)
+      if (band.pricing_unit === 'per_room' && pax.adults > 2 && dateRate.additional_person) {
         const additionalPersons = pax.adults - 2;
         additionalPersonCharge = additionalPersons * dateRate.additional_person;
       }
       
-      // Check max occupancy
-      if (dateRate.max_occupancy && pax.adults > dateRate.max_occupancy) {
+      // Check max occupancy (only for hotels)
+      if (band.pricing_unit === 'per_room' && dateRate.max_occupancy && pax.adults > dateRate.max_occupancy) {
         throw new Error(`Maximum occupancy exceeded. Max: ${dateRate.max_occupancy}, Requested: ${pax.adults}`);
       }
     } else {
-      // Fallback to legacy pricing
-      const requestedOccKey =
-        pax.adults >= 4 ? 'quad' :
-        pax.adults === 3 ? 'triple' :
-        pax.adults === 2 ? 'double' : 'single';
-
-      // Find the best available occupancy with fallback logic
-      const availablePrices = band.pricing_meta.prices;
-      let occKey = requestedOccKey;
-      let base = availablePrices[occKey as keyof typeof availablePrices];
-
-      // If requested occupancy not available, find the best fallback
-      if (base === undefined || base === 0) {
-        const fallbackOrder = pax.adults >= 4 ? ['quad', 'triple', 'double', 'single'] :
-                             pax.adults === 3 ? ['triple', 'quad', 'double', 'single'] :
-                             pax.adults === 2 ? ['double', 'triple', 'quad', 'single'] :
-                             ['single', 'double', 'triple', 'quad'];
-        
-        for (const fallbackKey of fallbackOrder) {
-          const fallbackPrice = availablePrices[fallbackKey as keyof typeof availablePrices];
-          if (fallbackPrice !== undefined && fallbackPrice > 0) {
-            occKey = fallbackKey;
-            base = fallbackPrice;
-            break;
-          }
-        }
-      }
-
-      if (base === undefined || base === 0) {
-        throw new Error(`No pricing available for ${pax.adults} adults on ${date}. Please configure at least one occupancy price for this rate band.`);
+      // Use new base_rate pricing structure
+      baseRate = band.base_rate || 0;
+      
+      // Calculate additional person charges (only for hotels)
+      if (band.pricing_unit === 'per_room' && pax.adults > 2 && band.additional_person_charge) {
+        const additionalPersons = pax.adults - 2;
+        additionalPersonCharge = additionalPersons * band.additional_person_charge;
       }
       
-      baseRate = base;
-      boardCost = band.pricing_meta.board?.included_cost_pppn ?? 0;
-      
-      // Apply additional person charges from contract if available
-      if (pax.adults > 2 && contract.plugin_defaults?.additional_person_charge) {
+      // Check max occupancy (only for hotels)
+      if (band.pricing_unit === 'per_room' && band.max_occupancy && pax.adults > band.max_occupancy) {
+        throw new Error(`Maximum occupancy exceeded. Max: ${band.max_occupancy}, Requested: ${pax.adults}`);
+      }
+
+      // Apply additional person charges from contract if available (only for hotels)
+      if (band.pricing_unit === 'per_room' && pax.adults > 2 && contract.plugin_defaults?.additional_person_charge && !band.additional_person_charge) {
         const additionalPersons = pax.adults - 2;
         additionalPersonCharge = additionalPersons * contract.plugin_defaults.additional_person_charge;
       }
@@ -104,7 +83,27 @@ export function priceStay(params: {
     return baseRate + boardCost + additionalPersonCharge;
   });
   
-  const roomSubtotalNet = nightlyNet.reduce((a,b)=>a+b,0);
+  // Calculate quantity based on pricing unit
+  let quantity = 1;
+  let totalNights = dates.length;
+  
+  if (band.pricing_unit === 'per_person' || band.pricing_unit === 'per_seat') {
+    quantity = pax.adults + pax.children.length;
+    totalNights = 1; // Per person pricing doesn't multiply by nights
+  } else if (band.pricing_unit === 'per_vehicle') {
+    quantity = 1; // One vehicle regardless of passengers
+    totalNights = 1; // Per vehicle pricing doesn't multiply by nights
+  } else if (band.pricing_unit === 'per_room') {
+    quantity = Math.ceil((pax.adults + pax.children.length) / (band.max_occupancy || 2));
+    totalNights = dates.length; // Per room per night
+  } else {
+    // per_unit - single unit regardless of pax or nights
+    quantity = 1;
+    totalNights = 1;
+  }
+
+  const baseSubtotal = band.base_rate * quantity;
+  const roomSubtotalNet = band.pricing_unit === 'per_room' ? nightlyNet.reduce((a,b)=>a+b,0) : baseSubtotal;
 
   // 2) Commission ↓
   const commission = roomSubtotalNet * (contract.economics.commission_pct / 100);
@@ -121,10 +120,10 @@ export function priceStay(params: {
     roomTax = roomSubtotalNet * (roomTaxRate / 100);
   }
   
-  // Calculate resort fee and its tax
+  // Calculate resort fee and its tax (only for hotels)
   const resortFeeDaily = band.tax_config?.resort_fee_daily ?? contract.plugin_defaults?.resort_fee_daily ?? 0;
-  if (resortFeeDaily > 0) {
-    resortFee = resortFeeDaily * dates.length;
+  if (resortFeeDaily > 0 && band.pricing_unit === 'per_room') {
+    resortFee = resortFeeDaily * totalNights;
     const resortFeeTaxable = band.tax_config?.resort_fee_taxable ?? contract.plugin_defaults?.resort_fee_taxable ?? false;
     if (resortFeeTaxable && roomTaxRate > 0) {
       resortFeeTax = resortFee * (roomTaxRate / 100);

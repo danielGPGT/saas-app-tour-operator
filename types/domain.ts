@@ -100,65 +100,47 @@ export interface RateBand {
   band_end: string;
   
   // Rate type and fulfilment
-  rate_type: 'STANDARD' | 'BUY_TO_ORDER';
+  rate_type?: 'STANDARD' | 'BUY_TO_ORDER';
   fulfilment_type?: 'instant' | 'manual' | 'buy_to_order';
   status?: 'active' | 'requires_procurement' | 'pending_confirmation';
   
-  // Pricing strategy
-  pricing_strategy: 'per_room' | 'per_person' | 'per_vehicle' | 'per_unit' | 'per_session';
+  // Basic rate info
+  currency: string;
+  weekday_mask: number; // Bitmask for available days (0-127)
+  active: boolean;
   
-  // Pricing configuration based on strategy
-  pricing_config: {
-    // Per Room (Hotels)
-    base_room_rate?: number;
-    additional_person_charge?: number;
-    max_occupancy?: number;
-    
-    // Per Person (Tickets, Activities)
-    rate_per_person?: number;
-    
-    // Per Vehicle (Transfers)
-    rate_per_vehicle?: number;
-    vehicle_capacity?: number;
-    route_from?: string;
-    route_to?: string;
-    duration_minutes?: number;
-    
-    // Per Unit (Equipment)
-    rate_per_unit?: number;
-    rental_period?: string; // daily, weekly, etc.
-    
-    // Per Session (Photography)
-    rate_per_session?: number;
-    session_duration_hours?: number;
-    max_group_size?: number;
-    
-    // Common fields
-    includes?: string[];
-    restrictions?: string[];
-    validity_period?: number; // days
-  };
+  // Simple pricing structure
+  base_rate: number; // Base price per unit
+  pricing_unit: 'per_room' | 'per_person' | 'per_vehicle' | 'per_seat' | 'per_unit';
+  additional_person_charge?: number; // For hotels: extra charge for 3rd/4th person
+  max_occupancy?: number; // For hotels: max people per room
   
   // Enhanced date-specific pricing
   date_rates?: {
     [date: string]: {
-      rate: number; // Base rate for the date
-      additional_info?: string; // Any date-specific details
+      single_double: number; // Base rate for 1-2 persons
+      additional_person?: number; // Charge for 3rd/4th person
+      max_occupancy?: number; // Max persons per room
+      rate_includes?: string; // What's included (breakfast, WiFi, etc.)
     };
   };
   
-  // Buy-to-order specific pricing (estimated costs)
-  estimated_cost?: number;
   
   // Risk buffer for buy-to-order items
-  buffer_margin_percent?: number;
+  buffer_margin_percent?: number; // Additional margin to protect against cost variance
+  
+  // Markup configuration
+  markup: {
+    b2c_pct: number;
+    b2b_pct: number;
+  };
   
   // Tax and fee configuration
   tax_config?: {
-    tax_rate?: number; // General tax percentage
-    fee_daily?: number; // Daily fee
-    fee_taxable?: boolean; // Is fee taxable
-    fee_inclusions?: string; // What fee includes
+    room_tax_rate?: number; // Room tax percentage
+    resort_fee_daily?: number; // Daily resort fee
+    resort_fee_taxable?: boolean; // Is resort fee taxable
+    resort_fee_inclusions?: string; // What resort fee includes
   };
   
   created_at?: string;

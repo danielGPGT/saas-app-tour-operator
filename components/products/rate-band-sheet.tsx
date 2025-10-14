@@ -61,13 +61,12 @@ export function RateBandSheet({ open, onOpenChange, rateBand, isCreating = false
 
         <div className="mt-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="pricing">Pricing</TabsTrigger>
-              <TabsTrigger value="date-rates">Date Rates</TabsTrigger>
-              <TabsTrigger value="markup">Markup</TabsTrigger>
-              <TabsTrigger value="tax-config">Tax & Fees</TabsTrigger>
-              <TabsTrigger value="buy-to-order">Buy-to-Order</TabsTrigger>
-            </TabsList>
+      <TabsList className="grid w-full grid-cols-4">
+        <TabsTrigger value="pricing">Pricing</TabsTrigger>
+        <TabsTrigger value="date-rates">Date Rates</TabsTrigger>
+        <TabsTrigger value="availability">Availability</TabsTrigger>
+        <TabsTrigger value="markup">Markup</TabsTrigger>
+      </TabsList>
 
             <div className="mt-6">
               <RateBandForm

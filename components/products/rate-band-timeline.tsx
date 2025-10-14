@@ -30,10 +30,10 @@ export function RateBandTimeline({ rateBands, onEdit }: RateBandTimelineProps) {
     ).join('')
   }
 
-  const getOccupancyPrices = (prices: any) => {
-    const entries = Object.entries(prices).filter(([_, value]) => value !== undefined)
-    if (entries.length === 0) return 'No prices set'
-    return entries.map(([key, value]) => `${key}: €${value}`).join(', ')
+  const getRateDisplay = (rateBand: any) => {
+    if (!rateBand.base_rate || rateBand.base_rate <= 0) return 'No price set'
+    const unit = rateBand.pricing_unit?.replace('per_', '') || 'unit'
+    return `€${rateBand.base_rate} per ${unit}`
   }
 
   const getRateBandForDate = (date: Date) => {
@@ -168,8 +168,8 @@ export function RateBandTimeline({ rateBands, onEdit }: RateBandTimelineProps) {
               </div>
               
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Prices:</span>
-                <span className="text-xs">{getOccupancyPrices(rateBand.pricing_meta.prices)}</span>
+                <span className="text-muted-foreground">Price:</span>
+                <span className="text-xs">{getRateDisplay(rateBand)}</span>
               </div>
               
               <div className="flex items-center justify-between text-sm">

@@ -52,9 +52,10 @@ export default function ProductRatesPage() {
     return activeDays.join(', ')
   }
 
-  const getOccupancyPrices = (prices: any) => {
-    const entries = Object.entries(prices).filter(([_, value]) => value !== undefined)
-    return entries.map(([key, value]) => `${key}: €${value}`).join(', ')
+  const getRateDisplay = (rateBand: any) => {
+    if (!rateBand.base_rate || rateBand.base_rate <= 0) return 'No price set'
+    const unit = rateBand.pricing_unit?.replace('per_', '') || 'unit'
+    return `€${rateBand.base_rate} per ${unit}`
   }
 
   if (!product) {
@@ -196,7 +197,7 @@ export default function ProductRatesPage() {
                               </div>
                               <div className="flex items-center gap-1">
                                 <DollarSign className="h-3 w-3" />
-                                {getOccupancyPrices(rateBand.pricing_meta.prices)}
+                                {getRateDisplay(rateBand)}
                               </div>
                               <div>
                                 B2C: {rateBand.markup.b2c_pct}% • B2B: {rateBand.markup.b2b_pct}%
