@@ -1,260 +1,239 @@
 'use client'
 
-import { useMemo } from 'react'
-import { Calendar, Bed, Briefcase, TrendingUp, DollarSign, ShoppingCart, Hotel } from 'lucide-react'
-import { StatsCard } from '@/components/ui/stats-card'
-import { Timeline } from '@/components/ui/timeline'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { useData } from '@/contexts/data-context'
-import { formatCurrency } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { 
+  Building2, 
+  FileText, 
+  Package, 
+  Calendar,
+  TrendingUp,
+  Users,
+  DollarSign,
+  Activity
+} from 'lucide-react'
+import Link from 'next/link'
 
-export default function Dashboard() {
-  const { summary, recentActivity, bookings, tours, contracts, rates, hotels } = useData()
+export default function DashboardPage() {
+  // Mock data for dashboard
+  const stats = {
+    suppliers: 12,
+    contracts: 28,
+    products: 156,
+    allocations: 1240,
+    bookings: 89,
+    revenue: 45600,
+    activeContracts: 22,
+    pendingRequests: 7
+  }
 
-  // Calculate financial metrics
-  const metrics = useMemo(() => {
-    // Total revenue from confirmed bookings
-    const totalRevenue = bookings
-      .filter(b => b.status === 'confirmed')
-      .reduce((sum, b) => sum + b.total_price, 0)
-
-    // Total rooms allocated across all contracts
-    const totalAllocated = contracts.reduce((sum, c) => 
-      sum + (c.room_allocations?.reduce((roomSum, alloc) => roomSum + alloc.quantity, 0) || 0), 0
-    )
-
-    // Total rooms booked
-    const totalBooked = bookings
-      .filter(b => b.status !== 'cancelled' && b.rooms)
-      .flatMap(b => b.rooms)
-      .reduce((sum, r) => sum + r.quantity, 0)
-
-    // Inventory utilization
-    const utilization = totalAllocated > 0 ? (totalBooked / totalAllocated) * 100 : 0
-
-    // Calculate profit from bookings (estimate based on 60% markup)
-    // In real system, you'd track actual costs
-    const estimatedCost = totalRevenue / 1.6 // Reverse 60% markup
-    const estimatedProfit = totalRevenue - estimatedCost
-    const avgMargin = totalRevenue > 0 ? ((estimatedProfit / totalRevenue) * 100) : 0
-
-    // Pending purchases count - check for buy_to_order rooms in bookings
-    const pendingPurchases = bookings.filter(b => 
-      b.status === 'pending' && b.rooms?.some(r => r.purchase_type === 'buy_to_order')
-    ).length
-
-    // Active contracts (not expired)
-    const today = new Date().toISOString().split('T')[0]
-    const activeContracts = contracts.filter(c => c.end_date >= today).length
-
-    return {
-      totalRevenue,
-      estimatedProfit,
-      avgMargin,
-      utilization,
-      pendingPurchases,
-      totalAllocated,
-      totalBooked,
-      activeContracts
+  const recentActivity = [
+    {
+      id: 1,
+      type: 'contract',
+      message: 'New contract created with NH Hotels',
+      time: '2 hours ago',
+      status: 'success'
+    },
+    {
+      id: 2,
+      type: 'booking',
+      message: 'Booking confirmed for Hotel Madrid Central',
+      time: '4 hours ago',
+      status: 'success'
+    },
+    {
+      id: 3,
+      type: 'allocation',
+      message: 'Allocation updated for May 2025',
+      time: '6 hours ago',
+      status: 'info'
+    },
+    {
+      id: 4,
+      type: 'supplier',
+      message: 'Supplier BookingWholesale updated',
+      time: '1 day ago',
+      status: 'info'
     }
-  }, [bookings, contracts])
-
-  // Top performing tours (based on bookings)
-  const topTours = useMemo(() => {
-    const tourStats = tours.map(tour => {
-      const tourBookings = bookings.filter(b => b.tour_id === tour.id && b.status === 'confirmed')
-      const revenue = tourBookings.reduce((sum, b) => sum + b.total_price, 0)
-      const roomCount = tourBookings.flatMap(b => b.rooms || []).reduce((sum, r) => sum + r.quantity, 0)
-      
-      return {
-        id: tour.id,
-        name: tour.name,
-        revenue,
-        bookingCount: tourBookings.length,
-        roomCount
-      }
-    })
-      .filter(t => t.revenue > 0)
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 5)
-    
-    return tourStats
-  }, [tours, bookings])
+  ]
 
   return (
-    <div className="space-y-6">
-      {/* Primary Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <StatsCard
-          title="Active Tours"
-          value={summary.activeToursCount}
-          icon={Calendar}
-          description={`${tours.length} total tours`}
-        />
-        <StatsCard
-          title="Total Revenue"
-          value={formatCurrency(metrics.totalRevenue)}
-          icon={DollarSign}
-          description="From confirmed bookings"
-        />
-        <StatsCard
-          title="Estimated Profit"
-          value={formatCurrency(metrics.estimatedProfit)}
-          icon={TrendingUp}
-          description={`${metrics.avgMargin.toFixed(1)}% avg margin`}
-        />
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <p className="text-muted-foreground">
+          Welcome to your tour operator inventory management system
+        </p>
       </div>
 
-      {/* Secondary Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Inventory Utilization</CardTitle>
-            <Bed className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Suppliers</CardTitle>
+            <Building2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics.utilization.toFixed(1)}%</div>
+            <div className="text-2xl font-bold">{stats.suppliers}</div>
             <p className="text-xs text-muted-foreground">
-              {metrics.totalBooked} / {metrics.totalAllocated} rooms booked
+              +2 from last month
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Contracts</CardTitle>
-            <Briefcase className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Contracts</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics.activeContracts}</div>
+            <div className="text-2xl font-bold">{stats.contracts}</div>
+            <div className="flex items-center gap-2">
+              <Badge variant="default">{stats.activeContracts} active</Badge>
+              <Badge variant="secondary">{stats.pendingRequests} pending</Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Products</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.products}</div>
             <p className="text-xs text-muted-foreground">
-              Currently valid
+              Across {stats.allocations} allocations
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Hotels</CardTitle>
-            <Hotel className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Bookings</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{hotels.length}</div>
+            <div className="text-2xl font-bold">{stats.bookings}</div>
             <p className="text-xs text-muted-foreground">
-              In system
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Purchases</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{metrics.pendingPurchases}</div>
-            <p className="text-xs text-muted-foreground">
-              Buy-to-order awaiting action
+              This month
             </p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {/* Top Performing Tours */}
+      {/* Revenue and Performance */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Top Performing Tours</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5" />
+              Revenue Overview
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">€{stats.revenue.toLocaleString()}</div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Total revenue this month
+            </p>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-green-600" />
+              <span className="text-sm text-green-600">+12.5% from last month</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              System Health
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {topTours.map((tour, index) => (
-                <div key={tour.id} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                      #{index + 1}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">{tour.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {tour.bookingCount} booking{tour.bookingCount !== 1 ? 's' : ''} • {tour.roomCount} room{tour.roomCount !== 1 ? 's' : ''}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-green-600">
-                      {formatCurrency(tour.revenue)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      revenue
-                    </p>
-                  </div>
-                </div>
-              ))}
-              {topTours.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  No sales yet. Create bookings to see performance data.
-                </p>
-              )}
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Active Contracts</span>
+                <Badge variant="default">{stats.activeContracts}</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Pending Requests</span>
+                <Badge variant="secondary">{stats.pendingRequests}</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">System Status</span>
+                <Badge variant="default" className="bg-green-100 text-green-800">
+                  All Systems Operational
+                </Badge>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Recent Activity */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Timeline items={recentActivity} />
           </CardContent>
         </Card>
       </div>
 
-      {/* System Overview */}
+      {/* Quick Actions */}
       <Card>
         <CardHeader>
-          <CardTitle>System Overview</CardTitle>
+          <CardTitle>Quick Actions</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Total Contracts:</span>
-                <Badge>{contracts.length}</Badge>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Button asChild variant="outline" className="h-auto p-4">
+              <Link href="/commercial/suppliers" className="flex flex-col items-center gap-2">
+                <Building2 className="h-6 w-6" />
+                <span>Add Supplier</span>
+              </Link>
+            </Button>
+            
+            <Button asChild variant="outline" className="h-auto p-4">
+              <Link href="/commercial/contracts" className="flex flex-col items-center gap-2">
+                <FileText className="h-6 w-6" />
+                <span>Create Contract</span>
+              </Link>
+            </Button>
+            
+            <Button asChild variant="outline" className="h-auto p-4">
+              <Link href="/inventory/products" className="flex flex-col items-center gap-2">
+                <Package className="h-6 w-6" />
+                <span>Manage Products</span>
+              </Link>
+            </Button>
+            
+            <Button asChild variant="outline" className="h-auto p-4">
+              <Link href="/sales/search" className="flex flex-col items-center gap-2">
+                <Calendar className="h-6 w-6" />
+                <span>Search Inventory</span>
+              </Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Recent Activity */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Activity</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {recentActivity.map((activity) => (
+              <div key={activity.id} className="flex items-center gap-3">
+                <div className={`w-2 h-2 rounded-full ${
+                  activity.status === 'success' ? 'bg-green-500' :
+                  activity.status === 'info' ? 'bg-blue-500' : 'bg-gray-500'
+                }`} />
+                <div className="flex-1">
+                  <p className="text-sm">{activity.message}</p>
+                  <p className="text-xs text-muted-foreground">{activity.time}</p>
+                </div>
+                <Badge variant="outline" className="text-xs">
+                  {activity.type}
+                </Badge>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Active Contracts:</span>
-                <Badge variant="default">{metrics.activeContracts}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Confirmed Bookings:</span>
-                <Badge variant="default">{bookings.filter(b => b.status === 'confirmed').length}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Pending Bookings:</span>
-                <Badge variant="secondary">{bookings.filter(b => b.status === 'pending').length}</Badge>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Total Hotels:</span>
-                <Badge variant="outline">{hotels.length}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Available Rates:</span>
-                <Badge variant="outline">{rates.length}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Allocated Rooms:</span>
-                <Badge variant="outline">{metrics.totalAllocated}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Average Margin:</span>
-                <Badge variant="outline" className="text-green-600">{metrics.avgMargin.toFixed(1)}%</Badge>
-              </div>
-            </div>
+            ))}
           </div>
         </CardContent>
       </Card>

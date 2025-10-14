@@ -1,41 +1,44 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
-import { Providers } from "@/components/providers";
-import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { Toaster } from "sonner";
+import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
+import { AppSidebar } from "@/components/layout/app-sidebar";
+import { SimpleHeader } from "@/components/layout/simple-header";
+// DataProvider removed - now using domain-based hooks
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Acme Tours - Tour Operator Management",
-  description: "Comprehensive tour operator management system",
+  title: "Tour Operator - Inventory Management",
+  description: "Modern B2B SaaS for tour operator inventory management",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <Providers>
-          <DashboardLayout>
-            {children}
-          </DashboardLayout>
+      <body className={inter.className} suppressHydrationWarning>
+        <ThemeProvider
+          defaultTheme="system"
+          storageKey="tour-operator-theme"
+        >
+          <div className="min-h-screen">
+            <SimpleHeader/>
+            <div className="flex">
+              <AppSidebar />
+              <main className="flex-1 lg:ml-64 rounded-tl-xl">
+                <div className="mx-auto lg:p-6 rounded-tl-xl">
+                  {children}
+                </div>
+              </main>
+            </div>
+          </div>
           <Toaster />
-        </Providers>
+        </ThemeProvider>
       </body>
     </html>
   );
