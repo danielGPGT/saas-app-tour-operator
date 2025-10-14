@@ -37,7 +37,11 @@ export function CoreContractForm({
     timezone: contract?.timezone || 'UTC',
     terms: contract?.terms || '',
     plugin_meta: contract?.plugin_meta || {},
-    active: contract?.active ?? true
+    active: contract?.active ?? true,
+    // Cost fields
+    cost_per_unit: contract?.cost_per_unit || '',
+    cost_currency: contract?.cost_currency || 'GBP',
+    cost_type: contract?.cost_type || 'fixed'
   });
 
 
@@ -173,6 +177,63 @@ export function CoreContractForm({
                       <SelectItem value="AUD">AUD</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cost_per_unit">Cost per Unit</Label>
+                  <Input
+                    id="cost_per_unit"
+                    type="number"
+                    step="0.01"
+                    value={formData.cost_per_unit}
+                    onChange={(e) => setFormData({ ...formData, cost_per_unit: e.target.value })}
+                    placeholder="80.00"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Wholesale rate per unit (e.g., £80 per room)
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cost_currency">Cost Currency</Label>
+                  <Select
+                    value={formData.cost_currency}
+                    onValueChange={(value) => setFormData({ ...formData, cost_currency: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="GBP">GBP</SelectItem>
+                      <SelectItem value="EUR">EUR</SelectItem>
+                      <SelectItem value="USD">USD</SelectItem>
+                      <SelectItem value="CAD">CAD</SelectItem>
+                      <SelectItem value="AUD">AUD</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Currency for supplier costs
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="cost_type">Cost Type</Label>
+                  <Select
+                    value={formData.cost_type}
+                    onValueChange={(value) => setFormData({ ...formData, cost_type: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fixed">Fixed Rate</SelectItem>
+                      <SelectItem value="dynamic">Dynamic Pricing</SelectItem>
+                      <SelectItem value="tiered">Tiered Pricing</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    How the supplier cost is structured
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="timezone">Time Zone</Label>

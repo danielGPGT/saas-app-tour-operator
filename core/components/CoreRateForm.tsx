@@ -17,6 +17,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 interface CoreRateFormProps {
   rate?: any; // UnifiedRate or similar
   contracts: any[]; // UnifiedContract[]
+  offers: any[]; // UnifiedOffer[]
   onSave: (data: any) => void;
   onCancel: () => void;
   plugin?: ContractPlugin;
@@ -26,6 +27,7 @@ interface CoreRateFormProps {
 export function CoreRateForm({
   rate,
   contracts,
+  offers,
   onSave,
   onCancel,
   plugin,
@@ -35,7 +37,7 @@ export function CoreRateForm({
     rate || {
       rate_name: '',
       category_id: '',
-      contract_id: '',
+      offer_id: '',
       inventory_type: 'buy_to_order',
       base_rate: 0,
       currency: 'GBP',
@@ -94,7 +96,7 @@ export function CoreRateForm({
                       <SelectItem key={category.id} value={category.id.toString()}>
                         {category.category_name}
                       </SelectItem>
-                    ))}
+                    )) || []}
                   </SelectContent>
                 </Select>
               </div>
@@ -117,23 +119,30 @@ export function CoreRateForm({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="contract_id">Contract</Label>
+                <Label htmlFor="offer_id">Offer *</Label>
                 <Select
-                  value={formData.contract_id}
-                  onValueChange={(value) => updateField('contract_id', value)}
-                  disabled={formData.inventory_type === 'buy_to_order'}
+                  value={formData.offer_id}
+                  onValueChange={(value) => updateField('offer_id', value)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a contract" />
+                    <SelectValue placeholder="Select an offer" />
                   </SelectTrigger>
                   <SelectContent>
-                    {contracts.filter(c => c.item_id === selectedItem?.id).map((contract) => (
-                      <SelectItem key={contract.id} value={contract.id.toString()}>
-                        {contract.contract_name}
+                    {offers?.filter(o => o.item_id === selectedItem?.id).map((offer) => (
+                      <SelectItem key={offer.id} value={offer.id.toString()}>
+                        <div className="flex items-center justify-between w-full">
+                          <span>{offer.offer_name}</span>
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            {offer.channel.toUpperCase()}
+                          </span>
+                        </div>
                       </SelectItem>
-                    ))}
+                    )) || []}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Choose the offer this rate applies to. Create offers first if none are available.
+                </p>
               </div>
             </div>
 

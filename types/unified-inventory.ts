@@ -431,6 +431,11 @@ export interface UnifiedContract {
   valid_to: string
   currency: string
   
+  // Supplier costs (NEW - stores wholesale rates from supplier)
+  cost_per_unit?: number        // Wholesale rate per unit (e.g., £80 per room)
+  cost_currency?: string        // Currency for cost (may differ from selling currency)
+  cost_type?: 'fixed' | 'dynamic' | 'tiered'  // How the cost is structured
+  
   // Note: Allocations moved to separate system - see Allocation interface
   
   // Pricing strategy
@@ -480,6 +485,79 @@ export interface UnifiedContract {
   
   // Generic plugin data storage (preserves all plugin form data)
   plugin_data?: Record<string, any>
+  
+  // Status
+  active: boolean
+  
+  // Timestamps
+  created_at?: string
+  updated_at?: string
+}
+
+// ============================================================================
+// UNIFIED OFFER (Channel-specific product offerings)
+// ============================================================================
+
+export interface UnifiedOffer {
+  id: number
+  
+  // Links
+  item_id: number
+  itemName: string
+  item_type: InventoryItemType
+  contract_id: number
+  contractName: string
+  category_id: string
+  categoryName: string
+  
+  // Offer details
+  offer_name: string
+  channel: 'web' | 'b2b' | 'internal'
+  currency: string
+  
+  // Business rules
+  rules: {
+    min_stay?: number
+    max_stay?: number
+    visibility?: boolean
+    tour_id?: number
+    market?: string
+  }
+  
+  // Status
+  active: boolean
+  
+  // Timestamps
+  created_at?: string
+  updated_at?: string
+}
+
+// ============================================================================
+// UNIFIED PRICING POLICY (Markup and pricing rules)
+// ============================================================================
+
+export interface UnifiedPricingPolicy {
+  id: number
+  
+  // Policy details
+  policy_name: string
+  description?: string
+  
+  // Scope - what this policy applies to
+  scope: {
+    channel?: 'web' | 'b2b' | 'internal'
+    offer_id?: number
+    tour_id?: number
+    market?: string
+  }
+  
+  // Pricing strategy
+  strategy: 'markup_pct' | 'gross_fixed' | 'agent_commission'
+  value: number  // e.g., 60 (percent) or fixed gross amount
+  
+  // Validity window
+  valid_from?: string
+  valid_to?: string
   
   // Status
   active: boolean
@@ -609,6 +687,46 @@ export interface PaymentSchedule {
 }
 
 // ============================================================================
+// UNIFIED OFFER (Channel-specific product offerings)
+// ============================================================================
+
+export interface UnifiedOffer {
+  id: number
+  
+  // Links
+  item_id: number
+  itemName: string
+  item_type: InventoryItemType
+  contract_id: number
+  contractName: string
+  category_id: string
+  categoryName: string
+  
+  // Channel and market
+  channel: 'web' | 'b2b' | 'internal'
+  currency: string
+  
+  // Rules and constraints
+  rules: {
+    min_stay?: number
+    max_stay?: number
+    visibility?: boolean
+    tour_id?: number
+    tourName?: string
+  }
+  
+  // Metadata
+  offer_meta?: Record<string, any>
+  
+  // Status
+  active: boolean
+  
+  // Timestamps
+  created_at?: string
+  updated_at?: string
+}
+
+// ============================================================================
 // UNIFIED RATE (Replaces Rate + ServiceRate)
 // ============================================================================
 
@@ -616,6 +734,8 @@ export interface UnifiedRate {
   id: number
   
   // Links
+  offer_id: number  // Required - links to UnifiedOffer
+  offerName?: string
   contract_id?: number  // Optional for buy-to-order
   contractName?: string
   item_id: number
@@ -1241,6 +1361,36 @@ export function calculatePeakOccupancyDate(pool: AllocationPoolCapacity): string
   })
   
   return peakDate
+}
+
+// ============================================================================
+// UNIFIED PRICING POLICY (Markup and pricing rules)
+// ============================================================================
+
+export interface UnifiedPricingPolicy {
+  id: number
+  
+  // Scope - what this policy applies to
+  scope: {
+    channel?: string
+    offer_id?: number
+    tour_id?: number
+    contract_id?: number
+  }
+  
+  // Pricing strategy
+  strategy: 'markup_pct' | 'gross_fixed' | 'agent_commission'
+  value: number  // e.g., 60 = 60% markup, or fixed gross amount
+  
+  // Priority (higher number = higher priority)
+  priority: number
+  
+  // Status
+  active: boolean
+  
+  // Timestamps
+  created_at?: string
+  updated_at?: string
 }
 
 

@@ -58,14 +58,24 @@ export interface Contract {
   active: boolean;
   created_at: string;
   updated_at: string;
+  // Supplier cost fields
+  cost_per_unit?: number; // Wholesale rate per unit
+  cost_currency?: string; // Currency for cost
+  cost_type?: 'fixed' | 'dynamic' | 'tiered'; // Cost structure
 }
 
 export interface Offer {
   id: string;
   product_id: string;
   contract_id: string;
-  channel?: string; // 'direct', 'ota', 'agent', etc.
-  fulfilment_type: 'immediate' | 'confirmed' | 'guaranteed';
+  channel: 'web' | 'b2b' | 'internal'; // Sales channel
+  currency: string; // Display currency
+  rules: {
+    min_stay?: number;
+    max_stay?: number;
+    visibility?: boolean;
+    tour_id?: string;
+  };
   offer_meta: Record<string, any>; // Type-specific offer data
   active: boolean;
   created_at: string;
@@ -109,6 +119,23 @@ export interface Allocation {
   valid_from: string;
   valid_to: string;
   allocation_meta: Record<string, any>; // Type-specific allocation data
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PricingPolicy {
+  id: string;
+  org_id: string;
+  scope: {
+    channel?: string;
+    offer_id?: string;
+    tour_id?: string;
+    contract_id?: string;
+  };
+  strategy: 'markup_pct' | 'gross_fixed' | 'agent_commission';
+  value: number; // e.g., 60 = 60% markup, or fixed gross amount
+  priority: number; // Higher number = higher priority
   active: boolean;
   created_at: string;
   updated_at: string;

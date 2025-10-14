@@ -7,6 +7,8 @@ import type {
   AllocationPoolCapacity,
   PoolBooking,
   RateCapacitySettings,
+  UnifiedOffer,
+  UnifiedPricingPolicy,
 } from '@/types/unified-inventory'
 
 // Types
@@ -642,10 +644,18 @@ interface DataContextType {
   addUnifiedContract: (contract: Omit<UnifiedContract, 'id' | 'itemName' | 'supplierName' | 'item_type' | 'tourNames' | 'created_at'>) => UnifiedContract
   updateUnifiedContract: (id: number, updates: Partial<UnifiedContract>) => void
   deleteUnifiedContract: (id: number) => void
+  unifiedOffers: UnifiedOffer[]
+  addUnifiedOffer: (offer: Omit<UnifiedOffer, 'id' | 'itemName' | 'contractName' | 'categoryName' | 'item_type' | 'created_at'>) => UnifiedOffer
+  updateUnifiedOffer: (id: number, updates: Partial<UnifiedOffer>) => void
+  deleteUnifiedOffer: (id: number) => void
   unifiedRates: UnifiedRate[]
   addUnifiedRate: (rate: Omit<UnifiedRate, 'id' | 'selling_price' | 'itemName' | 'categoryName' | 'contractName' | 'item_type' | 'tourName' | 'created_at'>) => UnifiedRate
   updateUnifiedRate: (id: number, updates: Partial<UnifiedRate>) => void
   deleteUnifiedRate: (id: number) => void
+  unifiedPricingPolicies: UnifiedPricingPolicy[]
+  addUnifiedPricingPolicy: (policy: Omit<UnifiedPricingPolicy, 'id' | 'created_at'>) => UnifiedPricingPolicy
+  updateUnifiedPricingPolicy: (id: number, updates: Partial<UnifiedPricingPolicy>) => void
+  deleteUnifiedPricingPolicy: (id: number) => void
   
   // NEW: Standalone allocations
   allocations: Allocation[]
@@ -1857,7 +1867,9 @@ const STORAGE_KEYS = {
   // NEW: Unified inventory system
   inventoryItems: 'tours-inventory-unified-items',
   unifiedContracts: 'tours-inventory-unified-contracts',
+  unifiedOffers: 'tours-inventory-unified-offers',
   unifiedRates: 'tours-inventory-unified-rates',
+  unifiedPricingPolicies: 'tours-inventory-unified-pricing-policies',
   allocations: 'tours-inventory-allocations',
   // NEW: Pool-centric capacity management
   allocationPoolCapacity: 'tours-inventory-pool-capacity',
@@ -1905,7 +1917,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // NEW: Unified inventory system state
   const [inventoryItems, setInventoryItemsState] = useState<InventoryItem[]>(() => loadFromStorage(STORAGE_KEYS.inventoryItems, []))
   const [unifiedContracts, setUnifiedContractsState] = useState<UnifiedContract[]>(() => loadFromStorage(STORAGE_KEYS.unifiedContracts, []))
+  const [unifiedOffers, setUnifiedOffersState] = useState<UnifiedOffer[]>(() => loadFromStorage(STORAGE_KEYS.unifiedOffers, []))
   const [unifiedRates, setUnifiedRatesState] = useState<UnifiedRate[]>(() => loadFromStorage(STORAGE_KEYS.unifiedRates, []))
+  const [unifiedPricingPolicies, setUnifiedPricingPoliciesState] = useState<UnifiedPricingPolicy[]>(() => loadFromStorage(STORAGE_KEYS.unifiedPricingPolicies, []))
   const [allocations, setAllocationsState] = useState<Allocation[]>(() => loadFromStorage(STORAGE_KEYS.allocations, []))
   
   // NEW: Pool-centric capacity management state
@@ -2069,10 +2083,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
     })
   }
 
+  const setUnifiedOffers = (data: UnifiedOffer[] | ((prev: UnifiedOffer[]) => UnifiedOffer[])) => {
+    setUnifiedOffersState(prev => {
+      const next = typeof data === 'function' ? data(prev) : data
+      saveToStorage(STORAGE_KEYS.unifiedOffers, next)
+      return next
+    })
+  }
+
   const setUnifiedRates = (data: UnifiedRate[] | ((prev: UnifiedRate[]) => UnifiedRate[])) => {
     setUnifiedRatesState(prev => {
       const next = typeof data === 'function' ? data(prev) : data
       saveToStorage(STORAGE_KEYS.unifiedRates, next)
+      return next
+    })
+  }
+
+  const setUnifiedPricingPolicies = (data: UnifiedPricingPolicy[] | ((prev: UnifiedPricingPolicy[]) => UnifiedPricingPolicy[])) => {
+    setUnifiedPricingPoliciesState(prev => {
+      const next = typeof data === 'function' ? data(prev) : data
+      saveToStorage(STORAGE_KEYS.unifiedPricingPolicies, next)
       return next
     })
   }
@@ -2213,12 +2243,73 @@ export function DataProvider({ children }: { children: ReactNode }) {
     
     // Check for dependencies
     const hasRates = unifiedRates.some(r => r.contract_id === id)
-    if (hasRates) {
-      throw new Error('Cannot delete contract with existing rates')
+    const hasOffers = unifiedOffers.some(o => o.contract_id === id)
+    if (hasRates || hasOffers) {
+      throw new Error('Cannot delete contract with existing rates or offers')
     }
     
     setUnifiedContracts(prevContracts => prevContracts.filter(c => c.id !== id))
     console.log(`🗑️ Deleted unified contract:`, contract?.contract_name)
+  }
+
+  // Unified Offer CRUD operations
+  const addUnifiedOffer = (offerData: Omit<UnifiedOffer, 'id' | 'itemName' | 'contractName' | 'categoryName' | 'item_type' | 'created_at'>) => {
+    const item = inventoryItems.find(i => i.id === offerData.item_id)
+    const contract = unifiedContracts.find(c => c.id === offerData.contract_id)
+    const category = item?.categories.find(c => c.id === offerData.category_id)
+    
+    if (!item || !contract || !category) {
+      throw new Error('Item, contract, or category not found')
+    }
+    
+    const newOffer: UnifiedOffer = {
+      ...offerData,
+      id: Math.max(...unifiedOffers.map(o => o.id), 0) + 1,
+      itemName: item.name,
+      contractName: contract.contract_name,
+      categoryName: category.category_name,
+      item_type: item.item_type,
+      created_at: new Date().toISOString(),
+    }
+    
+    setUnifiedOffers([...unifiedOffers, newOffer])
+    console.log(`✅ Created ${newOffer.item_type} offer:`, newOffer.offer_name)
+    return newOffer
+  }
+
+  const updateUnifiedOffer = (id: number, updates: Partial<UnifiedOffer>) => {
+    setUnifiedOffers(prev => prev.map(offer => {
+      if (offer.id === id) {
+        const updated = { ...offer, ...updates }
+        
+        // Update denormalized fields if references changed
+        const item = updates.item_id ? inventoryItems.find(i => i.id === updates.item_id) : undefined
+        const contract = updates.contract_id ? unifiedContracts.find(c => c.id === updates.contract_id) : undefined
+        const category = item?.categories.find(c => c.id === (updates.category_id || offer.category_id))
+        
+        if (item) updated.itemName = item.name
+        if (contract) updated.contractName = contract.contract_name
+        if (category) updated.categoryName = category.category_name
+        if (item) updated.item_type = item.item_type
+        
+        return updated
+      }
+      return offer
+    }))
+    console.log(`📝 Updated offer ${id}`)
+  }
+
+  const deleteUnifiedOffer = (id: number) => {
+    const offer = unifiedOffers.find(o => o.id === id)
+    
+    // Check for dependencies
+    const hasRates = unifiedRates.some(r => r.offer_id === id)
+    if (hasRates) {
+      throw new Error('Cannot delete offer with existing rates')
+    }
+    
+    setUnifiedOffers(prev => prev.filter(o => o.id !== id))
+    console.log(`🗑️ Deleted ${offer?.item_type} offer:`, offer?.offer_name)
   }
 
   // Unified Rate CRUD
@@ -2293,6 +2384,35 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const rate = unifiedRates.find(r => r.id === id)
     setUnifiedRates(prevRates => prevRates.filter(r => r.id !== id))
     console.log(`🗑️ Deleted ${rate?.item_type} rate:`, rate?.categoryName)
+  }
+
+  // Unified Pricing Policy CRUD operations
+  const addUnifiedPricingPolicy = (policyData: Omit<UnifiedPricingPolicy, 'id' | 'created_at'>) => {
+    const newPolicy: UnifiedPricingPolicy = {
+      ...policyData,
+      id: Math.max(...unifiedPricingPolicies.map(p => p.id), 0) + 1,
+      created_at: new Date().toISOString(),
+    }
+    
+    setUnifiedPricingPolicies([...unifiedPricingPolicies, newPolicy])
+    console.log(`✅ Created pricing policy:`, newPolicy.policy_name)
+    return newPolicy
+  }
+
+  const updateUnifiedPricingPolicy = (id: number, updates: Partial<UnifiedPricingPolicy>) => {
+    setUnifiedPricingPolicies(prev => prev.map(policy => {
+      if (policy.id === id) {
+        return { ...policy, ...updates }
+      }
+      return policy
+    }))
+    console.log(`📝 Updated pricing policy ${id}`)
+  }
+
+  const deleteUnifiedPricingPolicy = (id: number) => {
+    const policy = unifiedPricingPolicies.find(p => p.id === id)
+    setUnifiedPricingPolicies(prev => prev.filter(p => p.id !== id))
+    console.log(`🗑️ Deleted pricing policy:`, policy?.policy_name)
   }
 
   // ============================================================================
@@ -3408,10 +3528,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
     addUnifiedContract,
     updateUnifiedContract,
     deleteUnifiedContract,
+    unifiedOffers,
+    addUnifiedOffer,
+    updateUnifiedOffer,
+    deleteUnifiedOffer,
     unifiedRates,
     addUnifiedRate,
     updateUnifiedRate,
     deleteUnifiedRate,
+    unifiedPricingPolicies,
+    addUnifiedPricingPolicy,
+    updateUnifiedPricingPolicy,
+    deleteUnifiedPricingPolicy,
     // NEW: Standalone allocations
     allocations,
     setAllocations,

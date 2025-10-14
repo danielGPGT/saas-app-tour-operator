@@ -30,11 +30,11 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { Plus, Package, Trash2, Edit, FileText, Building2, Ticket, Car, Compass, Utensils, MapPin, Truck, Sparkles, Calculator } from 'lucide-react'
+import { Plus, Package, Trash2, Edit, FileText, Building2, Ticket, Car, Compass, Utensils, MapPin, Truck, Sparkles, Calculator, Globe, Users, Lock } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { useData } from '@/contexts/data-context'
-import type { InventoryItem, UnifiedContract, UnifiedRate, Allocation } from '@/types/unified-inventory'
+import type { InventoryItem, UnifiedContract, UnifiedRate, Allocation, UnifiedOffer } from '@/types/unified-inventory'
 import { ITEM_TYPE_LABELS } from '@/types/unified-inventory'
 
 // Icon mapping for item types
@@ -64,6 +64,9 @@ import { QuickSetupWizard } from '@/components/bulk-operations/quick-setup-wizar
 import { OpsQuickSetup } from '@/components/ops-workflow/ops-quick-setup'
 import { StandalonePricingSimulator } from '@/components/pricing-simulator/standalone-pricing-simulator'
 import { HotelPricingSimulator } from '@/components/hotel-pricing-simulator/hotel-pricing-simulator'
+import { OfferForm } from '@/components/offers/offer-form'
+import { DataInitializer } from '@/components/setup/data-initializer'
+import { PricingCalculator } from '@/components/pricing/pricing-calculator'
 
 // Map old item types to new plugin IDs
 const getPluginForItemType = (itemType: string) => {
@@ -83,6 +86,7 @@ export default function UnifiedInventory() {
   const {
     inventoryItems,
     unifiedContracts,
+    unifiedOffers,
     unifiedRates,
     allocations,
     suppliers,
@@ -92,6 +96,9 @@ export default function UnifiedInventory() {
     addUnifiedContract,
     updateUnifiedContract,
     deleteUnifiedContract,
+    addUnifiedOffer,
+    updateUnifiedOffer,
+    deleteUnifiedOffer,
     addUnifiedRate,
     updateUnifiedRate,
     deleteUnifiedRate,
@@ -109,6 +116,9 @@ export default function UnifiedInventory() {
   const [isContractDialogOpen, setIsContractDialogOpen] = useState(false)
   const [editingContract, setEditingContract] = useState<UnifiedContract | undefined>()
   const [selectedItemForContract, setSelectedItemForContract] = useState<InventoryItem | undefined>()
+  const [isOfferDialogOpen, setIsOfferDialogOpen] = useState(false)
+  const [editingOffer, setEditingOffer] = useState<UnifiedOffer | undefined>()
+  const [selectedItemForOffer, setSelectedItemForOffer] = useState<InventoryItem | undefined>()
   const [isRateDialogOpen, setIsRateDialogOpen] = useState(false)
   const [editingRate, setEditingRate] = useState<UnifiedRate | undefined>()
   const [selectedItemForRate, setSelectedItemForRate] = useState<InventoryItem | undefined>()
@@ -156,11 +166,16 @@ export default function UnifiedInventory() {
 
   // Helper functions for allocations
   const getItemAllocations = (itemId: number): Allocation[] => {
-    return allocations.filter(a => a.item_id === itemId)
+    return allocations?.filter(a => a.item_id === itemId) || []
   }
 
   const getItemPools = (itemId: number) => {
-    return allocationPoolCapacity.filter(p => p.item_id === itemId)
+    return allocationPoolCapacity?.filter(p => p.item_id === itemId) || []
+  }
+
+  // Helper functions for offers
+  const getItemOffers = (itemId: number): UnifiedOffer[] => {
+    return unifiedOffers?.filter(o => o.item_id === itemId) || []
   }
 
   // Handlers - Item
@@ -260,7 +275,7 @@ export default function UnifiedInventory() {
   }
 
   const handleDeleteContract = (contract: UnifiedContract) => {
-    const contractRates = unifiedRates.filter(r => r.contract_id === contract.id)
+    const contractRates = unifiedRates?.filter(r => r.contract_id === contract.id) || []
     if (contractRates.length > 0) {
       toast.error(`Cannot delete contract with ${contractRates.length} rates`)
       return
@@ -269,6 +284,33 @@ export default function UnifiedInventory() {
     if (confirm(`Delete contract "${contract.contract_name}"?`)) {
       deleteUnifiedContract(contract.id)
       toast.success('Contract deleted')
+    }
+  }
+
+  // Handlers - Offer
+  const handleOpenOfferDialog = (item: InventoryItem, offer?: UnifiedOffer) => {
+    setSelectedItemForOffer(item)
+    setEditingOffer(offer)
+    setIsOfferDialogOpen(true)
+  }
+
+  const handleSaveOffer = (offerData: Partial<UnifiedOffer>) => {
+    if (editingOffer) {
+      updateUnifiedOffer(editingOffer.id, offerData)
+      toast.success('Offer updated!')
+    } else {
+      addUnifiedOffer(offerData as any)
+      toast.success('✅ Offer created!')
+    }
+    setIsOfferDialogOpen(false)
+    setEditingOffer(undefined)
+    setSelectedItemForOffer(undefined)
+  }
+
+  const handleDeleteOffer = (offer: UnifiedOffer) => {
+    if (confirm(`Delete offer "${offer.offer_name}"?`)) {
+      deleteUnifiedOffer(offer.id)
+      toast.success('Offer deleted')
     }
   }
 
@@ -284,13 +326,15 @@ export default function UnifiedInventory() {
   const handleSaveRate = (rateData: any) => {
     // Convert core rate data to UnifiedRate format
     const pluginMeta = rateData.plugin_meta || {}
-    const selectedContract = unifiedContracts.find(c => c.id.toString() === rateData.contract_id)
+    const selectedOffer = unifiedOffers.find(o => o.id.toString() === rateData.offer_id)
     
     const unifiedRate: Partial<UnifiedRate> = {
       category_id: rateData.category_id || '',
       categoryName: selectedItemForRate?.categories?.find(c => c.id.toString() === rateData.category_id)?.category_name || 'Unknown Category',
-      contract_id: rateData.contract_id ? parseInt(rateData.contract_id) : undefined,
-      contractName: selectedContract?.contract_name || undefined,
+      offer_id: rateData.offer_id ? parseInt(rateData.offer_id) : undefined,
+      offerName: selectedOffer?.offer_name || undefined,
+      contract_id: selectedOffer?.contract_id || undefined, // Inherit from offer
+      contractName: selectedOffer?.contractName || undefined,
       item_id: selectedItemForRate?.id || 0,
       itemName: selectedItemForRate?.name || 'Unknown Item',
       item_type: selectedItemForRate?.item_type || 'hotel',
@@ -404,7 +448,7 @@ export default function UnifiedInventory() {
   const handleDeleteAllocation = (allocation: Allocation) => {
     if (confirm(`Delete allocation "${allocation.label}"?`)) {
       // Check if pool is used by any rates
-      const ratesUsingPool = unifiedRates.filter(r => r.allocation_pool_id === allocation.allocation_pool_id)
+      const ratesUsingPool = unifiedRates?.filter(r => r.allocation_pool_id === allocation.allocation_pool_id) || []
       if (ratesUsingPool.length > 0) {
         toast.error(`Cannot delete allocation - pool is used by ${ratesUsingPool.length} rates`)
         return
@@ -601,10 +645,10 @@ export default function UnifiedInventory() {
                     </div>
                     <div className="flex items-center justify-between text-xs opacity-75 mt-1">
                       <span>
-                        {unifiedContracts.filter(c => c.item_id === item.id).length} contracts
+                        {unifiedContracts?.filter(c => c.item_id === item.id).length || 0} contracts
                       </span>
                       <span>
-                        {unifiedRates.filter(r => r.item_id === item.id).length} rates
+                        {unifiedRates?.filter(r => r.item_id === item.id).length || 0} rates
                       </span>
                     </div>
                   </div>
@@ -648,21 +692,33 @@ export default function UnifiedInventory() {
                 <Tabs defaultValue="contracts" className="h-full flex flex-col">
                   <div className="border-b bg-background">
                     <div className="flex items-center px-4">
-                      <TabsList className="grid w-full grid-cols-5">
-                        <TabsTrigger value="contracts" className="text-xs">
-                          Contracts ({unifiedContracts.filter(c => c.item_id === selectedItem.id).length})
+                      <TabsList className="grid w-full grid-cols-9">
+                        <TabsTrigger value="setup" className="text-xs">
+                          Setup
                         </TabsTrigger>
-                        <TabsTrigger value="rates" className="text-xs">
-                          Rates ({unifiedRates.filter(r => r.item_id === selectedItem.id).length})
+                        <TabsTrigger value="contracts" className="text-xs">
+                          Contracts ({unifiedContracts?.filter(c => c.item_id === selectedItem.id).length || 0})
+                        </TabsTrigger>
+                        <TabsTrigger value="offers" className="text-xs">
+                          Offers ({getItemOffers(selectedItem.id).length})
                         </TabsTrigger>
                         <TabsTrigger value="allocations" className="text-xs">
                           Allocations ({getItemAllocations(selectedItem.id).length})
                         </TabsTrigger>
+                        <TabsTrigger value="rates" className="text-xs">
+                          Rates ({unifiedRates?.filter(r => r.item_id === selectedItem.id).length || 0})
+                        </TabsTrigger>
                         <TabsTrigger value="pools" className="text-xs">
                           Pools ({getItemPools(selectedItem.id).length})
                         </TabsTrigger>
-                        <TabsTrigger value="hotel-pricing" className="text-xs">
-                          Hotel Pricing
+                        <TabsTrigger value="pricing-calculator" className="text-xs">
+                          Pricing Calculator
+                        </TabsTrigger>
+                        <TabsTrigger value="search-booking" className="text-xs">
+                          Search & Book
+                        </TabsTrigger>
+                        <TabsTrigger value="profit-analytics" className="text-xs">
+                          Profit Analytics
                         </TabsTrigger>
                       </TabsList>
                     </div>
@@ -670,6 +726,61 @@ export default function UnifiedInventory() {
 
                   {/* Tab Content */}
                   <div className="flex-1 overflow-y-auto p-3">
+                    <TabsContent value="setup" className="space-y-4 mt-0">
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold">Multi-Channel Pricing Setup</h3>
+                        <p className="text-muted-foreground">
+                          Initialize your system with sample data to test the multi-channel pricing flow
+                        </p>
+                        
+                        {/* Data Initializer */}
+                        <DataInitializer />
+                        
+                        {/* System Overview */}
+                        <div className="grid grid-cols-3 gap-4">
+                          <Card>
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-sm">Current Data</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-1 text-sm">
+                                <div>Items: {inventoryItems.length}</div>
+                                <div>Contracts: {unifiedContracts.length}</div>
+                                <div>Offers: {unifiedOffers.length}</div>
+                                <div>Rates: {unifiedRates.length}</div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                          
+                          <Card>
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-sm">Channels</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-1 text-sm">
+                                <div>Web: {unifiedOffers.filter(o => o.channel === 'web').length}</div>
+                                <div>B2B: {unifiedOffers.filter(o => o.channel === 'b2b').length}</div>
+                                <div>Internal: {unifiedOffers.filter(o => o.channel === 'internal').length}</div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                          
+                          <Card>
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-sm">Pricing Policies</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-1 text-sm">
+                                <div>Active: {unifiedPricingPolicies.filter(p => p.active).length}</div>
+                                <div>Markup: {unifiedPricingPolicies.filter(p => p.strategy === 'markup_pct').length}</div>
+                                <div>Commission: {unifiedPricingPolicies.filter(p => p.strategy === 'agent_commission').length}</div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </div>
+                      </div>
+                    </TabsContent>
+
                     <TabsContent value="contracts" className="mt-0">
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
@@ -683,12 +794,12 @@ export default function UnifiedInventory() {
                               <Plus className="h-3 w-3 mr-1" />
                               Add
                             </Button>
-                            {unifiedContracts.filter(c => c.item_id === selectedItem.id).length > 0 && (
+                            {(unifiedContracts?.filter(c => c.item_id === selectedItem.id).length || 0) > 0 && (
                               <Button 
                                 size="sm" 
                                 variant="outline"
                                 onClick={() => {
-                                  const firstContract = unifiedContracts.filter(c => c.item_id === selectedItem.id)[0]
+                                  const firstContract = unifiedContracts?.filter(c => c.item_id === selectedItem.id)[0]
                                   if (firstContract) {
                                     handleOpenQuickSetup(selectedItem, firstContract)
                                   }
@@ -713,15 +824,16 @@ export default function UnifiedInventory() {
                           </div>
                         </div>
                         
-                        {unifiedContracts.filter(c => c.item_id === selectedItem.id).length > 0 ? (
+                        {(unifiedContracts?.filter(c => c.item_id === selectedItem.id).length || 0) > 0 ? (
                           <div className="border rounded-lg overflow-hidden">
                             <div className="grid grid-cols-12 gap-2 p-2 bg-muted/50 text-xs font-medium border-b">
                               <div className="col-span-3">Contract Name</div>
                               <div className="col-span-2">Supplier</div>
+                              <div className="col-span-2">Cost per Unit</div>
                               <div className="col-span-3">Valid Period</div>
-                              <div className="col-span-4 text-right">Actions</div>
+                              <div className="col-span-2 text-right">Actions</div>
                             </div>
-                            {unifiedContracts.filter(c => c.item_id === selectedItem.id).map(contract => (
+                            {unifiedContracts?.filter(c => c.item_id === selectedItem.id).map(contract => (
                               <div key={contract.id} className="grid grid-cols-12 gap-2 p-2 border-b last:border-b-0 hover:bg-muted/20">
                                 <div className="col-span-3 flex items-center gap-2">
                                   <FileText className="h-3 w-3 text-muted-foreground" />
@@ -730,10 +842,24 @@ export default function UnifiedInventory() {
                                 <div className="col-span-2">
                                   <span className="text-sm">{contract.supplierName}</span>
                                 </div>
+                                <div className="col-span-2">
+                                  {contract.cost_per_unit ? (
+                                    <div className="text-sm">
+                                      <div className="font-medium text-green-600">
+                                        £{contract.cost_per_unit.toFixed(2)}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        {contract.cost_currency || 'GBP'}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">No cost set</span>
+                                  )}
+                                </div>
                                 <div className="col-span-3 text-xs text-muted-foreground">
                                   {contract.valid_from} to {contract.valid_to}
                                 </div>
-                                <div className="col-span-4 flex items-center justify-end gap-1">
+                                <div className="col-span-2 flex items-center justify-end gap-1">
                                   <Button size="sm" variant="ghost" onClick={() => handleOpenContractDialog(selectedItem, contract)} className="h-6 w-6 p-0">
                                     <Edit className="h-3 w-3" />
                                   </Button>
@@ -747,6 +873,71 @@ export default function UnifiedInventory() {
                         ) : (
                           <div className="text-center py-8 text-sm text-muted-foreground">
                             No contracts yet. Add your first contract to get started.
+                          </div>
+                        )}
+                      </div>
+                    </TabsContent>
+                    
+                    <TabsContent value="offers" className="mt-0">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium text-sm">Offers</h4>
+                          <Button 
+                            size="sm" 
+                            onClick={() => handleOpenOfferDialog(selectedItem)}
+                            className="h-7 px-3 text-xs"
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Add
+                          </Button>
+                        </div>
+                        
+                        {getItemOffers(selectedItem.id).length > 0 ? (
+                          <div className="border rounded-lg overflow-hidden">
+                            <div className="grid grid-cols-12 gap-2 p-2 bg-muted/50 text-xs font-medium border-b">
+                              <div className="col-span-3">Offer Name</div>
+                              <div className="col-span-2">Channel</div>
+                              <div className="col-span-2">Contract</div>
+                              <div className="col-span-2">Category</div>
+                              <div className="col-span-2">Currency</div>
+                              <div className="col-span-1 text-right">Actions</div>
+                            </div>
+                            {getItemOffers(selectedItem.id).map(offer => (
+                              <div key={offer.id} className="grid grid-cols-12 gap-2 p-2 border-b last:border-b-0 hover:bg-muted/20">
+                                <div className="col-span-3 flex items-center gap-2">
+                                  {offer.channel === 'web' && <Globe className="h-3 w-3 text-blue-500" />}
+                                  {offer.channel === 'b2b' && <Users className="h-3 w-3 text-green-500" />}
+                                  {offer.channel === 'internal' && <Lock className="h-3 w-3 text-gray-500" />}
+                                  <span className="text-sm truncate">{offer.categoryName}</span>
+                                </div>
+                                <div className="col-span-2">
+                                  <Badge variant={offer.channel === 'web' ? 'default' : offer.channel === 'b2b' ? 'secondary' : 'outline'} className="text-xs">
+                                    {offer.channel.toUpperCase()}
+                                  </Badge>
+                                </div>
+                                <div className="col-span-2">
+                                  <span className="text-sm">{offer.contractName}</span>
+                                </div>
+                                <div className="col-span-2">
+                                  <span className="text-sm">{offer.categoryName}</span>
+                                </div>
+                                <div className="col-span-2">
+                                  <span className="text-sm">{offer.currency}</span>
+                                </div>
+                                <div className="col-span-1 flex items-center justify-end gap-1">
+                                  <Button size="sm" variant="ghost" onClick={() => handleOpenOfferDialog(selectedItem, offer)} className="h-6 w-6 p-0">
+                                    <Edit className="h-3 w-3" />
+                                  </Button>
+                                  <Button size="sm" variant="ghost" onClick={() => handleDeleteOffer(offer)} className="h-6 w-6 p-0 text-red-600 hover:text-red-700">
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-sm text-muted-foreground">
+                            No offers yet. Create offers to define how you sell your inventory across different channels.
                           </div>
                         )}
                       </div>
@@ -766,7 +957,7 @@ export default function UnifiedInventory() {
                           </Button>
                         </div>
                         
-                         {unifiedRates.filter(r => r.item_id === selectedItem.id).length > 0 ? (
+                         {(unifiedRates?.filter(r => r.item_id === selectedItem.id).length || 0) > 0 ? (
                            <div className="border rounded-lg overflow-hidden">
                              <div className="overflow-x-auto">
                                <table className="w-full text-sm">
@@ -820,7 +1011,7 @@ export default function UnifiedInventory() {
                                    </tr>
                                  </thead>
                                  <tbody>
-                                   {unifiedRates.filter(r => r.item_id === selectedItem.id).map((rate) => (
+                                   {unifiedRates?.filter(r => r.item_id === selectedItem.id).map((rate) => (
                                      <tr
                                        key={rate.id}
                                        className={`${rate.active ? 'hover:bg-muted/30' : 'opacity-50'} transition-colors`}
@@ -1158,6 +1349,7 @@ export default function UnifiedInventory() {
                                     <th className="text-center p-2 font-semibold text-xs uppercase tracking-wide">Available</th>
                                     <th className="text-center p-2 font-semibold text-xs uppercase tracking-wide">Booked</th>
                                     <th className="text-center p-2 font-semibold text-xs uppercase tracking-wide">Utilization</th>
+                                    <th className="text-center p-2 font-semibold text-xs uppercase tracking-wide">Cost per Unit</th>
                                     <th className="text-center p-2 font-semibold text-xs uppercase tracking-wide">Status</th>
                                     <th className="text-left p-2 font-semibold text-xs uppercase tracking-wide">Rates Using</th>
                                     <th className="text-center p-2 font-semibold text-xs uppercase tracking-wide">Manage</th>
@@ -1167,7 +1359,7 @@ export default function UnifiedInventory() {
                                   {getItemPools(selectedItem.id).map((pool) => {
                                     const utilization = pool.total_capacity > 0 ? ((pool.total_capacity - pool.available_spots) / pool.total_capacity) * 100 : 0
                                     const booked = pool.total_capacity - pool.available_spots
-                                    const ratesUsingPool = unifiedRates.filter(r => r.item_id === selectedItem.id && r.allocation_pool_id === pool.pool_id)
+                                    const ratesUsingPool = unifiedRates?.filter(r => r.item_id === selectedItem.id && r.allocation_pool_id === pool.pool_id) || []
                                     
                                     return (
                                       <tr
@@ -1218,6 +1410,35 @@ export default function UnifiedInventory() {
                                               {utilization.toFixed(0)}%
                                             </span>
                                           </div>
+                                        </td>
+                                        
+                                        <td className="p-2 text-center">
+                                          {(() => {
+                                            // Calculate cost per unit from allocations
+                                            const poolAllocations = allocations?.filter(a => a.allocation_pool_id === pool.pool_id) || []
+                                            const totalCost = poolAllocations.reduce((sum, allocation) => {
+                                              const contract = unifiedContracts.find(c => c.id === allocation.contract_id)
+                                              return sum + (allocation.quantity * (contract?.cost_per_unit || 0))
+                                            }, 0)
+                                            const costPerUnit = pool.total_capacity > 0 ? totalCost / pool.total_capacity : 0
+                                            
+                                            if (costPerUnit > 0) {
+                                              return (
+                                                <div className="text-xs">
+                                                  <div className="font-medium text-green-600">
+                                                    £{costPerUnit.toFixed(2)}
+                                                  </div>
+                                                  <div className="text-muted-foreground">
+                                                    {poolAllocations.length} supplier{poolAllocations.length > 1 ? 's' : ''}
+                                                  </div>
+                                                </div>
+                                              )
+                                            } else {
+                                              return (
+                                                <span className="text-xs text-muted-foreground">No costs</span>
+                                              )
+                                            }
+                                          })()}
                                         </td>
                                         
                                         <td className="p-2 text-center">
@@ -1275,12 +1496,76 @@ export default function UnifiedInventory() {
                       </div>
                     </TabsContent>
                     
-                    <TabsContent value="hotel-pricing" className="mt-0">
-                      <HotelPricingSimulator
-                        item={selectedItem}
-                        rates={unifiedRates}
-                        contracts={unifiedContracts}
-                      />
+                    <TabsContent value="pricing-policies" className="mt-0">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium text-sm">Pricing Policies</h4>
+                            <p className="text-xs text-muted-foreground">
+                              Manage markup rules and pricing strategies
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="text-center py-8 text-sm text-muted-foreground">
+                          Pricing policies management will be available here.
+                          <br />
+                          <span className="text-xs">This feature allows you to set markup rules per channel, offer, or globally.</span>
+                        </div>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="pricing-calculator" className="mt-0">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium text-sm">Pricing Calculator</h4>
+                            <p className="text-xs text-muted-foreground">
+                              Test multi-channel pricing with real-time calculations
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <PricingCalculator />
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="search-booking" className="mt-0">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium text-sm">Search & Book</h4>
+                            <p className="text-xs text-muted-foreground">
+                              Search available inventory and get real-time pricing
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="text-center py-8 text-sm text-muted-foreground">
+                          Search and booking functionality will be available here.
+                          <br />
+                          <span className="text-xs">This feature allows customers to search and book inventory with dynamic pricing.</span>
+                        </div>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="profit-analytics" className="mt-0">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium text-sm">Profit Analytics</h4>
+                            <p className="text-xs text-muted-foreground">
+                              Revenue, costs, and profit analysis for {selectedItem.name}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="text-center py-8 text-sm text-muted-foreground">
+                          Profit analytics and reporting will be available here.
+                          <br />
+                          <span className="text-xs">This feature shows profit margins, revenue analysis, and cost breakdowns.</span>
+                        </div>
+                      </div>
                     </TabsContent>
                   </div>
                 </Tabs>
@@ -1431,7 +1716,7 @@ export default function UnifiedInventory() {
                   contract_linked: editingRate.inventory_type === 'contract'
                 }
               } : undefined}
-              contracts={unifiedContracts.filter(c => c.item_id === selectedItemForRate.id)}
+              contracts={unifiedContracts?.filter(c => c.item_id === selectedItemForRate.id) || []}
               onSave={handleSaveRate}
               onCancel={() => {
                 setIsRateDialogOpen(false)
@@ -1515,6 +1800,30 @@ export default function UnifiedInventory() {
                     ))}
                   </select>
                 </div>
+                <div>
+                  <label className="text-sm font-medium">Contract (Optional)</label>
+                  <select className="w-full p-2 border rounded text-sm" id="allocation-contract">
+                    <option value="">Select contract</option>
+                    {unifiedContracts
+                      .filter(c => c.item_id === selectedItemForAllocationCreate.id)
+                      .map(contract => (
+                        <option 
+                          key={contract.id} 
+                          value={contract.id}
+                          selected={editingAllocation?.contract_id === contract.id}
+                        >
+                          {contract.contract_name} - {contract.supplierName}
+                          {contract.cost_per_unit && ` (£${contract.cost_per_unit})`}
+                        </option>
+                      ))}
+                  </select>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    💡 Link to contract to inherit supplier costs
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium">Pool ID *</label>
                   <div className="space-y-1">
@@ -1608,6 +1917,7 @@ export default function UnifiedInventory() {
                     const label = (document.getElementById('allocation-label') as HTMLInputElement)?.value
                     const quantity = parseInt((document.getElementById('allocation-quantity') as HTMLInputElement)?.value || '0')
                     const supplierId = parseInt((document.getElementById('allocation-supplier') as HTMLSelectElement)?.value || '0')
+                    const contractId = (document.getElementById('allocation-contract') as HTMLSelectElement)?.value
                     const poolId = (document.getElementById('allocation-pool-id') as HTMLInputElement)?.value
                     const validFrom = (document.getElementById('allocation-valid-from') as HTMLInputElement)?.value
                     const validTo = (document.getElementById('allocation-valid-to') as HTMLInputElement)?.value
@@ -1627,6 +1937,7 @@ export default function UnifiedInventory() {
                       item_id: selectedItemForAllocationCreate.id,
                       item_type: selectedItemForAllocationCreate.item_type,
                       supplier_id: supplierId,
+                      contract_id: contractId ? parseInt(contractId) : undefined,
                       category_ids: categoryIds,
                       quantity,
                       allocation_pool_id: poolId,
@@ -1894,6 +2205,64 @@ export default function UnifiedInventory() {
               rates={unifiedRates}
               contracts={unifiedContracts}
               onClose={() => setIsPricingSimulatorOpen(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Offer Dialog */}
+      {isOfferDialogOpen && selectedItemForOffer && (
+        <Dialog open={isOfferDialogOpen} onOpenChange={setIsOfferDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {editingOffer ? 'Edit Offer' : 'Create Offer'}
+              </DialogTitle>
+              <DialogDescription>
+                {editingOffer ? 'Update offer details' : `Create new offer for ${selectedItemForOffer.name}`}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <OfferForm
+              offer={editingOffer}
+              item={selectedItemForOffer}
+              contracts={unifiedContracts?.filter(c => c.item_id === selectedItemForOffer.id) || []}
+              onSave={handleSaveOffer}
+              onCancel={() => {
+                setIsOfferDialogOpen(false)
+                setEditingOffer(undefined)
+                setSelectedItemForOffer(undefined)
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Rate Dialog */}
+      {isRateDialogOpen && selectedItemForRate && (
+        <Dialog open={isRateDialogOpen} onOpenChange={setIsRateDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {editingRate ? 'Edit Rate' : 'Create Rate'}
+              </DialogTitle>
+              <DialogDescription>
+                {editingRate ? 'Update rate details' : `Create new rate for ${selectedItemForRate.name}`}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <CoreRateForm
+              rate={editingRate}
+              contracts={unifiedContracts?.filter(c => c.item_id === selectedItemForRate.id) || []}
+              offers={unifiedOffers?.filter(o => o.item_id === selectedItemForRate.id) || []}
+              onSave={handleSaveRate}
+              onCancel={() => {
+                setIsRateDialogOpen(false)
+                setEditingRate(undefined)
+                setSelectedItemForRate(undefined)
+              }}
+              plugin={getPluginForItemType(selectedItemForRate.item_type) ? getPlugin(getPluginForItemType(selectedItemForRate.item_type)!) : undefined}
+              selectedItem={selectedItemForRate}
             />
           </DialogContent>
         </Dialog>
